@@ -1,8 +1,6 @@
 # calubhouse
 dont kill me grenade i just needed a windows version ❤️
 
-**the-house** is a cursed command line casino suite, in **batch** of course
-
 ## features
 
 - 20 unique games
