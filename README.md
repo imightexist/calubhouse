@@ -12,14 +12,3 @@ dont kill me grenade i just needed a windows version ❤️
 - optional gambling addiction
 
 your progress, wins, and... mistakes are all remembered. even after death.
-
-## installation
-you can either use your favorite AUR helper, e.g. yay:
-```bash
-yay -S the-house
-```
-or manually clone and build the package yourself:
-```bash
-git clone https://aur.archlinux.org/the-house.git
-cd the-house
-makepkg -si
