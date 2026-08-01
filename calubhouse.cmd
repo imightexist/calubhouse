@@ -44,7 +44,7 @@ IF %player_money% == 0 (
 echo %player_money%
 color 07
 echo.
-echo items ==>
+echo items ==^>
 goto shop
 rem dirty bash ewwwwww
 shop_menu() {
