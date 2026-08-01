@@ -1,0 +1,443 @@
+set CONFIG_DIR=%cd%/config
+set GAMES=%cd%/games
+md config
+md games
+set BALANCE_FILE=%CONFIG_DIR%/balance.txt
+set BLACKLIST_FILE=%CONFIG_DIR%/blacklist.txt
+set LOG_FILE=%CONFIG_DIR%/log.txt
+set PACT_FILE=%CONFIG_DIR%/pact.txt
+set LOCK_FILE=%CONFIG_DIR%/debug-lock.txt
+set SHOP_FILE=%CONFIG_DIR%/shop.txt
+set INVENTORY_FILE=%CONFIG_DIR%/inventory.txt
+set ACHIEVEMENTS_FILE=%CONFIG_DIR%/achievements.txt
+if not exist "%BALANCE_FILE%" (echo 777 > %BALANCE_FILE%)
+if not exist "%LOG_FILE%" (echo. > %LOG_FILE%)
+if not exist "%ACHIEVEMENTS_FILE%" (echo. > %ACHIEVEMENTS_FILE%)
+if not exist "%INVENTORY_FILE%" (echo. > %INVENTORY_FILE%)
+set player_money=<%BALANCE_FILE%
+if not exist "%SHOP_FILE%" (
+  echo get-out-of-pact-card 30000 free card to exit pact >> %SHOP_FILE%
+  echo 5k-deposit 5000 a sort of insurance for when you go broke >> %SHOP_FILE%
+  echo ??? 1 i dont know >> %SHOP_FILE%
+)
+:shop
+cls
+echo calubOS Las Vegas
+<nul set /p ="money: "
+IF %player_money% == 0 (
+  color 04
+) ELSE (
+  IF %player_money% LSS 100 (
+    color 0c
+  ) ELSE (
+    IF %player_money% GEQ 101 && %player_money% LEQ 499 (
+      color 06
+    ) ELSE (
+      IF %player_money% GEQ 500 && %player_money% LEQ 2500 (
+        color 02
+      ) ELSE (
+        color 09
+      )
+    )
+  )
+)
+echo %player_money%
+color 07
+echo.
+echo items ==>
+goto shop
+rem dirty bash ewwwwww
+shop_menu() {
+    while true; do
+        echo -e "\033[1;36mitems ==>\033[0m"
+
+        idx=1
+        while IFS= read -r line; do
+            item_name=$(echo "$line" | awk '{print $1}')
+            price=$(echo "$line" | awk '{print $2}')
+            description=$(echo "$line" | cut -d' ' -f3-)
+            echo -e "\033[97m$idx)\033[0m $item_name - \$$price - $description"
+            ((idx++))
+        done < "$SHOP_FILE"
+
+        echo -e "\033[97m0)\033[0m exit shop"
+        echo
+        read -r -p ">> " item_choice
+
+        if [[ "$item_choice" == "0" ]]; then
+            break
+        fi
+
+        item_line=$(sed -n "${item_choice}p" "$SHOP_FILE" || true)
+        if [[ -z "$item_line" ]]; then
+            echo "invalid choice."
+            sleep 1
+            continue
+        fi
+
+        item_name=$(echo "$item_line" | awk '{print $1}')
+        price=$(echo "$item_line" | awk '{print $2}')
+
+        if ! [[ "$price" =~ ^[0-9]+$ ]]; then
+    	echo "invalid choice"
+    	read -n 1 -s -r -p "press any key to return"
+	fi
+
+        if (( player_money < price )); then
+            echo "not enough money, brokie"
+            sleep 0.5
+            read -n 1 -s -r -p "press any key to return"
+            exit 0
+        fi
+
+        player_money=$((player_money - price))
+        echo "$player_money" > "$BALANCE_FILE"
+        echo "$item_name" >> "$INVENTORY_FILE"
+        echo "purchased $item_name for $price"
+        sleep 1
+        read -n 1 -s -r -p "press any key to return"
+    done
+}
+
+inventory_menu() {
+    while true; do
+        clear
+        echo -e "\033[94myour inventory\033[0m"
+        if [ "$player_money" == 0 ]; then
+            color="\033[0;31m"
+        elif [ "$player_money" -lt 100 ]; then
+            color="\033[91m"
+        elif [ "$player_money" -ge 101 ] && [ "$player_money" -le 499 ]; then
+            color="\033[33m"
+        elif [ "$player_money" -ge 500 ] && [ "$player_money" -le 2500 ]; then
+            color="\033[32m"
+        else
+            color="\033[94m"
+        fi
+        echo -e "balance: ${color}\033[1m\$${player_money}\033[0m"
+        echo
+
+        if [[ ! -s "$INVENTORY_FILE" ]]; then
+            echo "inventory is empty."
+            sleep 1
+            break
+        fi
+
+        mapfile -t items < "$INVENTORY_FILE"
+        items=("${items[@]/#/}")
+        filtered_items=()
+        for item in "${items[@]}"; do
+            [[ -n $item ]] && filtered_items+=("$item")
+        done
+        items=("${filtered_items[@]}")
+
+        if (( ${#items[@]} == 0 )); then
+            echo "inventory is empty."
+            sleep 1
+            break
+        fi
+
+        for i in "${!items[@]}"; do
+            echo -e "\033[97m$((i+1)))\033[0m ${items[i]}"
+        done
+
+        echo -e "\033[97m0)\033[0m exit inventory"
+        echo
+        read -r -p ">> " inv_choice
+
+        if [[ "$inv_choice" == "0" ]]; then
+            break
+        fi
+
+        if ! [[ "$inv_choice" =~ ^[0-9]+$ ]] || (( inv_choice < 1 || inv_choice > ${#items[@]} )); then
+            echo "invalid choice."
+            sleep 1
+            continue
+        fi
+
+        item_name="${items[$((inv_choice-1))]}"
+
+        case "$item_name" in
+                get-out-of-pact-card)
+                rm -f "$PACT_FILE"
+                player_money=$(( player_money / 3 ))
+                echo "pact removed, balance divided by 3"
+                echo "your balance: \$$player_money"
+                echo "$player_money" > "$BALANCE_FILE"
+                read -n 1 -s -r -p "press any key to return"
+                ;;
+                5k-deposit)
+        	echo "you cash in your 5k deposit!"
+        	player_money=$(( player_money + 5000 ))
+        	echo "$player_money" > "$BALANCE_FILE"
+        	read -n 1 -s -r -p "press any key to return"
+        	;;
+                ???)
+                echo "placeholder"
+  		;;
+                *)
+                echo "invalid item name"
+                sleep 1
+                break
+                ;;
+        esac
+
+        unset 'items[inv_choice-1]'
+
+        filtered_items=()
+        for item in "${items[@]}"; do
+            [[ -n $item ]] && filtered_items+=("$item")
+        done
+
+        printf "%s\n" "${filtered_items[@]}" > "$INVENTORY_FILE"
+
+    done
+}
+
+unlock_achievement() {
+    local achievement="$1"
+    if ! grep -Fxq "$achievement" "$ACHIEVEMENTS_FILE"; then
+        echo "$achievement" >> "$ACHIEVEMENTS_FILE"
+        clear
+        echo -e "\033[1;32machievement unlocked: $achievement\033[0m"
+        sleep 1
+        read -n 1 -s -r -p "press any key to return"
+    fi
+}
+
+if (( player_money == 0 )); then
+    unlock_achievement "going broke // gamble away your entire balance"
+fi
+
+if (( player_money == 777 )); then
+    unlock_achievement "welcome // enter the house"
+fi
+
+if (( player_money >= 5000 )); then
+    unlock_achievement "woah thats alot of money // 5000$ balance reached"
+fi
+
+if (( player_money >= 250000 )); then
+    unlock_achievement "wait, you can win? // 250k balance reached"
+fi
+
+if grep -Fxq "one-time-shell-access" "$INVENTORY_FILE"; then
+    unlock_achievement "4th wall break // acquire temporary shell access"
+fi
+
+if grep -Fxq "get-out-of-pact-card" "$INVENTORY_FILE"; then
+    unlock_achievement "cheat the system // cancel the pact"
+fi
+
+achievements_menu() {
+    clear
+    echo -e "\033[94machievements\033[0m"
+    if [[ ! -s "$ACHIEVEMENTS_FILE" ]]; then
+        echo "no achievements unlocked yet"
+    else
+        cat "$ACHIEVEMENTS_FILE"
+    fi
+    echo
+    sleep 1
+    read -n 1 -s -r -p "press any key to return"
+}
+
+if [[ "$player_money" -gt 250000 ]]; then
+    echo
+    echo "you acquired 250k"
+    read -r -p "do you want to exit? (y/N) " cont
+    if [[ "$cont" =~ ^[Yy]$ ]]; then
+        exec /bin/bash
+    fi
+fi
+ 
+while true; do
+clear
+echo -e "\r\033[34mthe-house\033[0m"
+if [ "$player_money" -eq 0 ]; then
+    color="\033[0;31m"
+elif [ "$player_money" -lt 100 ]; then
+    color="\033[91m"
+elif [ "$player_money" -le 499 ]; then
+    color="\033[33m"
+elif [ "$player_money" -le 2500 ]; then
+    color="\033[32m"
+else
+    color="\033[94m"
+fi
+if [ -f "$PACT_FILE" ]; then
+    balance_display="${player_money} *"
+else
+    balance_display="$player_money"
+fi
+
+echo -e "balance: ${color}\$$balance_display\033[0m"
+echo
+echo -e "\033[1;36m==> games (1/2) \033[0m"
+echo -e "\033[97m01)\033[0m blackjack"
+echo -e "\033[97m02)\033[0m russian roulette"
+echo -e "\033[97m03)\033[0m dice duel"
+echo -e "\033[97m04)\033[0m coinflip"
+echo -e "\033[97m05)\033[0m high low"
+echo -e "\033[97m06)\033[0m guess a number"
+echo -e "\033[97m07)\033[0m slot machine"
+echo -e "\033[97m08)\033[0m keno"
+echo -e "\033[97m09)\033[0m scratch card"
+echo -e "\033[97m10)\033[0m plinko"
+echo -e "\033[97m11)\033[0m minesweeper"
+echo -e "\033[97m12)\033[0m horse race"
+echo -e "\033[97m13)\033[0m rock paper scissors"
+echo -e "\033[97m14)\033[0m double or nothing"
+echo -e "\033[97m15)\033[0m roulette table"
+echo -e "\033[97m16)\033[0m wheel of fortune"
+echo
+echo -e "\033[97m99)\033[0m next page"
+echo
+
+read -r -p ">> " choice
+case "$choice" in
+    1|01) bash "$GAMES"/blackjack.sh ;;
+    2|02) bash "$GAMES"/russian-roulette.sh ;;
+    3|03) bash "$GAMES"/dice-duel.sh ;;
+    4|04) bash "$GAMES"/coinflip.sh ;;
+    5|05) bash "$GAMES"/high-low.sh ;;
+    6|06) bash "$GAMES"/guess-the-number.sh ;;
+    7|07) bash "$GAMES"/slot-machine.sh ;;
+    8|08) bash "$GAMES"/keno.sh ;;
+    9|09) bash "$GAMES"/scratch-card.sh ;;
+    10)   bash "$GAMES"/plinko.sh ;;
+    11)   bash "$GAMES"/minesweeper.sh ;;
+    12)   bash "$GAMES"/horse-race.sh ;;
+    13)   bash "$GAMES"/rps.sh ;;
+    14)   bash "$GAMES"/double-or-nothing.sh ;;
+    15)   bash "$GAMES"/roulette.sh ;;
+    16)   bash "$GAMES"/wheel-of-fortune.sh ;;
+    1337)
+          read -s -p "> " input
+          if [[ "$input" == verysecret ]]; then
+    	     exec bash
+	  else
+    	     echo "incorrect"
+    	     exit 0
+	  fi
+	  ;;
+    99)   break ;;
+    *)    echo "invalid selection" ;;
+esac
+player_money=$(<"$BALANCE_FILE")
+done
+
+while true; do
+clear
+echo -e "\r\033[34mthe-house\033[0m"
+if [ "$player_money" -eq 0 ]; then
+    color="\033[0;31m"
+elif [ "$player_money" -lt 100 ]; then
+    color="\033[91m"
+elif [ "$player_money" -le 499 ]; then
+    color="\033[33m"
+elif [ "$player_money" -le 2500 ]; then
+    color="\033[32m"
+else
+    color="\033[94m"
+fi
+if [ -f "$PACT_FILE" ]; then
+    balance_display="${player_money} *"
+else
+    balance_display="$player_money"
+fi
+
+echo -e "balance: ${color}\$$balance_display\033[0m"
+echo
+echo -e "\033[1;36m==> games (2/2) \033[0m"
+echo -e "\033[97m17)\033[0m card draw"
+echo -e "\033[97m18)\033[0m mystery boxes"
+echo -e "\033[97m19)\033[0m dice pyramid"
+echo -e "\033[97m20)\033[0m stock market"
+echo
+echo -e "\033[97m99)\033[0m next page"
+echo
+
+read -r -p ">> " choice
+case "$choice" in
+    17) bash "$GAMES"/card-draw.sh ;;
+    18) bash "$GAMES"/mystery-boxes.sh ;;
+    19) bash "$GAMES"/dice-pyramid.sh ;;
+    20) bash "$GAMES"/stock-market.sh ;;
+    1337)
+          read -s -p "> " input
+          if [[ "$input" == verysecret ]]; then
+    	     exec bash
+	  else
+    	     echo "incorrect"
+    	     exit 0
+	  fi
+	  ;;
+    99)   break ;;
+    *)    echo "invalid selection" ;;
+esac
+player_money=$(<"$BALANCE_FILE")
+done
+
+while true; do
+clear
+echo -e "\r\033[34mthe-house \033[0m"
+echo -e "balance: ${color}\$$balance_display\033[0m"
+echo
+echo -e "\033[1;36m==> extra\033[0m"
+echo -e "\033[97m21)\033[0m the pact"
+echo -e "\033[97m22)\033[0m shop"
+echo -e "\033[97m23)\033[0m inventory"
+echo -e "\033[97m24)\033[0m random game"
+echo -e "\033[97m25)\033[0m achievements"
+echo -e "\033[97m26)\033[0m reload"
+echo
+echo -e "\033[97m99)\033[0m back to page 1"
+echo
+
+read -r -p ">> " choice
+case "$choice" in
+    21) bash "$GAMES"/pact.sh ;;
+    22) shop_menu ;;
+    23) inventory_menu ;;
+    26) exit 0 ;;
+    25) achievements_menu ;;
+    1337)
+    read -s -p "> " input
+    if [[ "$input" == verysecret ]]; then
+       exec bash
+    else
+       echo "incorrect"
+       exit 0
+    fi
+    ;;
+    24)  
+    gambling=$((RANDOM % 20 + 1))
+    case "$gambling" in
+        1)  bash "$GAMES"/blackjack.sh ;;
+        2)  bash "$GAMES"/russian-roulette.sh ;;
+        3)  bash "$GAMES"/dice-duel.sh ;;
+        4)  bash "$GAMES"/coinflip.sh ;;
+        5)  bash "$GAMES"/high-low.sh ;;
+        6)  bash "$GAMES"/guess-the-number.sh ;;
+        7)  bash "$GAMES"/slot-machine.sh ;;
+        8)  bash "$GAMES"/keno.sh ;;
+        9)  bash "$GAMES"/scratch-card.sh ;;
+        10) bash "$GAMES"/plinko.sh ;;
+        11) bash "$GAMES"/minesweeper.sh ;;
+        12) bash "$GAMES"/horse-race.sh ;;
+        13) bash "$GAMES"/rps.sh ;;
+        14) bash "$GAMES"/double-or-nothing.sh ;;
+        15) bash "$GAMES"/roulette.sh ;;
+        16) bash "$GAMES"/wheel-of-fortune.sh ;;
+        17) bash "$GAMES"/card-draw.sh ;;
+        18) bash "$GAMES"/mystery-boxes.sh ;;
+        19) bash "$GAMES"/dice-pyramid.sh ;;
+        20) bash "$GAMES"/stock-market.sh ;;
+    esac
+    ;;
+    99) break ;;
+    *)  echo "invalid selection" && sleep 1 ;;
+esac
+player_money=$(<"$BALANCE_FILE")
+done
