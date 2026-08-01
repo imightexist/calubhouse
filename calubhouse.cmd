@@ -44,13 +44,12 @@ IF %player_money% == 0 (
 echo %player_money%
 color 07
 echo.
+color 09
 echo items ==^>
 goto shop
 rem dirty bash ewwwwww
 shop_menu() {
     while true; do
-        echo -e "\033[1;36mitems ==>\033[0m"
-
         idx=1
         while IFS= read -r line; do
             item_name=$(echo "$line" | awk '{print $1}')
