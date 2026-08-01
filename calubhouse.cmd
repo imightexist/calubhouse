@@ -42,7 +42,6 @@ IF %player_money% == 0 (
   )
 )
 echo %player_money%
-color 07
 echo.
 color 09
 echo items ==^>
