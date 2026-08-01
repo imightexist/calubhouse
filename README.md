@@ -1,5 +1,5 @@
 # calubhouse
-dont kill me grenade i just needed a windows version ❤️
+wow i fucking hate bash
 
 ## features
 
